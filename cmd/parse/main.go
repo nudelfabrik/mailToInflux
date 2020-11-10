@@ -1,31 +1,62 @@
 package main
 
 import (
+	"compress/gzip"
+	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 
-	"github.com/nudelfabrik/mailToInflux/dmarc"
+	"github.com/nudelfabrik/mailToInflux/mtasts"
 )
 
 func main() {
-	xmlFile, err := os.Open("dmarc.xml")
-	if err != nil {
-		log.Fatal(err)
+	stdin := flag.Bool("stdin", false, "Use Standard In for file")
+
+	flag.Parse()
+
+	var file *os.File
+
+	var err error
+
+	if *stdin {
+		file = os.Stdin
+	} else {
+		if flag.NArg() == 0 {
+			log.Fatal("No filename found.")
+		}
+
+		file, err = os.Open(flag.Arg(0))
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
+	defer file.Close()
 
-	defer xmlFile.Close()
-
-	bytes, err := ioutil.ReadAll(xmlFile)
 	if err != nil {
 		log.Println(err)
 	}
 
-	report, err := dmarc.ParseDmarc(bytes)
+	bytes, err := unGz(file)
+
+	if errors.Is(err, gzip.ErrHeader) {
+		log.Println("no gzip file")
+	} else {
+		report, err := mtasts.ParseMTASTS(bytes)
+		if err != nil {
+			log.Println(err)
+		}
+		fmt.Println(report)
+	}
+}
+
+func unGz(file *os.File) ([]byte, error) {
+	gzReader, err := gzip.NewReader(file)
 	if err != nil {
-		log.Println(err)
+		return []byte{}, err
 	}
 
-	fmt.Println(report)
+	return ioutil.ReadAll(gzReader)
 }

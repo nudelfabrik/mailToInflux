@@ -1,4 +1,5 @@
 .DS_Store
+cmd/parse/parse
 # Binaries for programs and plugins
 *.exe
 *.exe~
