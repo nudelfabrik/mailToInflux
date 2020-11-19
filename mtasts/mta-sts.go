@@ -3,6 +3,9 @@ package mtasts
 import (
 	"encoding/json"
 	"time"
+
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api/write"
 )
 
 type Report struct {
@@ -33,7 +36,7 @@ type summary struct {
 	Failure int `json:"total-failure-session-count"`
 }
 
-func ParseMTASTS(raw []byte) (*Report, error) {
+func Parse(raw []byte) (*Report, error) {
 	var rReport rawReport
 
 	err := json.Unmarshal(raw, &rReport)
@@ -52,4 +55,14 @@ func ParseMTASTS(raw []byte) (*Report, error) {
 	}
 
 	return &r, nil
+}
+
+func (r Report) Measurement() *write.Point {
+	p := influxdb2.NewPointWithMeasurement("mtasts").
+		AddTag("orgname", r.OrgName).
+		AddField("success", r.Success).
+		AddField("failure", r.Failure).
+		SetTime(r.EndTime)
+
+	return p
 }

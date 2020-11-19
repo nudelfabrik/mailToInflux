@@ -1,29 +1,43 @@
 package main
 
 import (
+	"archive/zip"
 	"compress/gzip"
 	"context"
 	"errors"
 	"flag"
-	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 
-	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/nudelfabrik/mailToInflux/dmarc"
 	"github.com/nudelfabrik/mailToInflux/influx"
 	"github.com/nudelfabrik/mailToInflux/mtasts"
 	"github.com/nudelfabrik/mailToInflux/settings"
 )
 
 func main() {
+	// Parse Flags
 	stdin := flag.Bool("stdin", false, "Use Standard In for file")
 
 	flag.Parse()
 
-	var file *os.File
-
+	// load influx connection
 	settings, err := settings.LoadSettings("")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	db, err := influx.NewInfluxDB(settings)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer db.Client.Close()
+
+	// Open Reader
+	var file *os.File
 
 	if *stdin {
 		file = os.Stdin
@@ -43,38 +57,82 @@ func main() {
 		log.Println(err)
 	}
 
-	bytes, err := unGz(file)
+	// try Gzip fist
+	report, err := unGz(file)
+	if err == nil {
+		// When error is nil, ungzip successful, write datapoint and exit
+		err = db.Write(context.Background(), report)
+		if err != nil {
+			log.Println(err)
+		}
+		return
 
-	if errors.Is(err, gzip.ErrHeader) {
-		log.Println("no gzip file")
-	} else {
-		report, err := mtasts.ParseMTASTS(bytes)
-		if err != nil {
-			log.Println(err)
-		}
-		fmt.Println(report)
-		db, err := influx.NewInfluxDB(settings)
-		if err != nil {
-			log.Println(err)
-		}
-		writeAPI := db.Client.WriteAPIBlocking(settings.Org, settings.Bucket)
-		p := influxdb2.NewPointWithMeasurement("mtasts").
-			AddTag("orgname", report.OrgName).
-			AddField("success", report.Success).
-			AddField("failure", report.Failure).
-			SetTime(report.EndTime)
-		err = writeAPI.WritePoint(context.Background(), p)
-		if err != nil {
-			log.Println(err)
-		}
+	} else if !errors.Is(err, gzip.ErrHeader) {
+		// If error something else than unsuccessful ungzip, something else is wrong
+		// e.g. File error, unmarshaling error. Log error and exit
+		log.Println(err)
+		return
 	}
+
+	dreport, err := unZip(file)
+
+	if err == nil {
+		// When error is nil, ungzip successful, write datapoint and exit
+		err = db.Write(context.Background(), dreport)
+		if err != nil {
+			log.Println(err)
+		}
+		return
+	}
+
 }
 
-func unGz(file *os.File) ([]byte, error) {
-	gzReader, err := gzip.NewReader(file)
+func unZip(zfile *os.File) (*dmarc.Report, error) {
+	stats, err := zfile.Stat()
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
-	return ioutil.ReadAll(gzReader)
+	zipReader, err := zip.NewReader(zfile, stats.Size())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, f := range zipReader.File {
+		file, err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+
+		bytes, err := ioutil.ReadAll(file)
+		if err != nil {
+			return nil, err
+		}
+
+		report, err := dmarc.Parse(bytes)
+		if err != nil {
+			log.Println(err)
+		} else {
+			return report, nil
+		}
+	}
+
+	return nil, errors.New("No xml file found")
+
+}
+
+func unGz(file io.Reader) (*mtasts.Report, error) {
+	gzReader, err := gzip.NewReader(file)
+	if err != nil {
+		return nil, err
+	}
+
+	defer gzReader.Close()
+
+	bytes, err := ioutil.ReadAll(gzReader)
+	if err != nil {
+		return nil, err
+	}
+
+	return mtasts.Parse(bytes)
 }

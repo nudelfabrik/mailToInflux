@@ -3,6 +3,9 @@ package dmarc
 import (
 	"encoding/xml"
 	"log"
+
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api/write"
 )
 
 type Report struct {
@@ -19,7 +22,7 @@ type Record struct {
 	SpfResult  PolicySuccess `xml:"row>policy_evaluated>spf"`
 }
 
-func ParseDmarc(raw []byte) (*Report, error) {
+func Parse(raw []byte) (*Report, error) {
 	var report *Report
 
 	err := xml.Unmarshal(raw, report)
@@ -28,4 +31,12 @@ func ParseDmarc(raw []byte) (*Report, error) {
 		return nil, err
 	}
 	return report, nil
+}
+
+func (r Report) Measurement() *write.Point {
+	p := influxdb2.NewPointWithMeasurement("dmarc").
+		AddTag("orgname", r.OrgName).
+		SetTime(r.EndTime.Time)
+
+	return p
 }
