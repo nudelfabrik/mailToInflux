@@ -2,6 +2,7 @@ package main
 
 import (
 	"compress/gzip"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -9,7 +10,10 @@ import (
 	"log"
 	"os"
 
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/nudelfabrik/mailToInflux/influx"
 	"github.com/nudelfabrik/mailToInflux/mtasts"
+	"github.com/nudelfabrik/mailToInflux/settings"
 )
 
 func main() {
@@ -19,7 +23,7 @@ func main() {
 
 	var file *os.File
 
-	var err error
+	settings, err := settings.LoadSettings("")
 
 	if *stdin {
 		file = os.Stdin
@@ -49,6 +53,20 @@ func main() {
 			log.Println(err)
 		}
 		fmt.Println(report)
+		db, err := influx.NewInfluxDB(settings)
+		if err != nil {
+			log.Println(err)
+		}
+		writeAPI := db.Client.WriteAPIBlocking(settings.Org, settings.Bucket)
+		p := influxdb2.NewPointWithMeasurement("mtasts").
+			AddTag("orgname", report.OrgName).
+			AddField("success", report.Success).
+			AddField("failure", report.Failure).
+			SetTime(report.EndTime)
+		err = writeAPI.WritePoint(context.Background(), p)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 }
 

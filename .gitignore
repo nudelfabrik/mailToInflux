@@ -1,5 +1,6 @@
 .DS_Store
 cmd/parse/parse
+cmd/parse/mti.json
 # Binaries for programs and plugins
 *.exe
 *.exe~
