@@ -25,7 +25,11 @@ func NewInfluxDB(settings *settings.Settings) (*DB, error) {
 }
 
 func (db DB) Write(ctx context.Context, r mti.Report) error {
-	err := db.api.WritePoint(ctx, r.Measurement())
-
-	return err
+	for _, m := range r.Measurements() {
+		err := db.api.WritePoint(ctx, m)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

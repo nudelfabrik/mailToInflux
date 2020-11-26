@@ -57,12 +57,14 @@ func Parse(raw []byte) (*Report, error) {
 	return &r, nil
 }
 
-func (r Report) Measurement() *write.Point {
+func (r Report) Measurements() (points []*write.Point) {
 	p := influxdb2.NewPointWithMeasurement("mtasts").
 		AddTag("orgname", r.OrgName).
 		AddField("success", r.Success).
 		AddField("failure", r.Failure).
 		SetTime(r.EndTime)
 
-	return p
+	points = append(points, p)
+
+	return points
 }

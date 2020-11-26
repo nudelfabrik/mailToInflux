@@ -5,5 +5,5 @@ import (
 )
 
 type Report interface {
-	Measurement() *write.Point
+	Measurements() []*write.Point
 }

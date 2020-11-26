@@ -33,10 +33,16 @@ func Parse(raw []byte) (*Report, error) {
 	return &report, nil
 }
 
-func (r Report) Measurement() *write.Point {
-	p := influxdb2.NewPointWithMeasurement("dmarc").
-		AddTag("orgname", r.OrgName).
-		SetTime(r.EndTime.Time)
+func (r Report) Measurements() (points []*write.Point) {
+	for _, record := range r.Records {
+		p := influxdb2.NewPointWithMeasurement("dmarc").
+			AddTag("orgname", r.OrgName).
+			AddTag("sourceIP", record.SourceIP).
+			AddField("dkimfailure", int(record.DkimResult)).
+			AddField("spffailure", int(record.SpfResult)).
+			SetTime(r.EndTime.Time)
+		points = append(points, p)
+	}
 
-	return p
+	return points
 }
