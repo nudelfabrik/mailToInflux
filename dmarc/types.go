@@ -8,19 +8,19 @@ import (
 type PolicySuccess int
 
 const (
-	Unknown PolicySuccess = iota
-	Pass
+	Pass PolicySuccess = iota
 	Fail
+	Unknown
 )
 
 func (p PolicySuccess) String() string {
 	switch p {
-	case Unknown:
-		return "Unknown"
 	case Pass:
 		return "pass"
 	case Fail:
 		return "fail"
+	case Unknown:
+		return "Unknown"
 	default:
 		return ""
 	}

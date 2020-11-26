@@ -77,7 +77,7 @@ func main() {
 	dreport, err := unZip(file)
 
 	if err == nil {
-		// When error is nil, ungzip successful, write datapoint and exit
+		// When error is nil, unzip successful, write datapoint and exit
 		err = db.Write(context.Background(), dreport)
 		if err != nil {
 			log.Println(err)

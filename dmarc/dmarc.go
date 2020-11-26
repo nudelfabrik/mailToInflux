@@ -23,14 +23,14 @@ type Record struct {
 }
 
 func Parse(raw []byte) (*Report, error) {
-	var report *Report
+	report := Report{}
 
-	err := xml.Unmarshal(raw, report)
+	err := xml.Unmarshal(raw, &report)
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
-	return report, nil
+	return &report, nil
 }
 
 func (r Report) Measurement() *write.Point {
